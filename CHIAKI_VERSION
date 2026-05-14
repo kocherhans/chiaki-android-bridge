@@ -1,0 +1,8 @@
+upstream: https://github.com/streetpea/chiaki-ng
+fork:     https://github.com/kocherhans/chiaki-ng
+branch:   intent-controller
+commit:   879ee6a4f2ad4f0bbfda7c26c3d3436d88a6490f
+
+Local modifications (2 commits on top of upstream fae612d):
+  5bd2752  PS Play Compatibility — lib/CMakeLists.txt tweak
+  879ee6a  PS Play Compatibility — added dummy_holepunch.c stub, takion.pb.c/h

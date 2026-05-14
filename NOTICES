@@ -1,0 +1,41 @@
+# Third-Party Notices
+
+## chiaki-ng
+URL:     https://github.com/streetpea/chiaki-ng
+Fork:    https://github.com/kocherhans/chiaki-ng (branch: intent-controller)
+License: GNU General Public License v3.0
+SPDX:    GPL-3.0-only
+
+## android-openssl (KDAB)
+URL:     https://github.com/KDAB/android_openssl
+Commit:  b71f1470962019bd89534a2919f5925f93bc5779
+License: Apache License 2.0 / OpenSSL License
+SPDX:    Apache-2.0
+
+## libcurl
+URL:     https://curl.se/
+License: curl License (MIT/X derivative)
+SPDX:    curl
+Note:    Prebuilt static library (arm64-v8a) included in curl/
+
+## json-c
+URL:     https://github.com/json-c/json-c
+Commit:  52ddfb35f1cc7e337edb6b1939a043140b42cf5a
+License: MIT License
+SPDX:    MIT
+
+## miniupnp / miniupnpc
+URL:     https://github.com/miniupnp/miniupnp
+Commit:  48475c73a078792944465d87417d00820761f639
+License: BSD 3-Clause License
+SPDX:    BSD-3-Clause
+
+## nanopb
+URL:     https://github.com/nanopb/nanopb (bundled inside chiaki-ng third-party/)
+License: zlib License
+SPDX:    Zlib
+
+## Jerasure / GF-Complete
+URL:     https://github.com/tsuraan/Jerasure (bundled inside chiaki-ng third-party/)
+License: BSD 2-Clause License
+SPDX:    BSD-2-Clause
