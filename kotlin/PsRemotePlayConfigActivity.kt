@@ -25,6 +25,7 @@ import com.platform.intentcontroller.models.OutputConfig
 import com.platform.intentcontroller.models.OutputType
 import com.platform.intentcontroller.R
 import com.platform.intentcontroller.storage.ProfileManager
+import com.platform.intentcontroller.storage.PsCredentialStore
 import com.platform.intentcontroller.ui.output.OutputUiKit.BG_PRIMARY
 import com.platform.intentcontroller.ui.output.OutputUiKit.BG_SECONDARY
 import com.platform.intentcontroller.ui.output.OutputUiKit.DANGER
@@ -55,7 +56,8 @@ import kotlin.coroutines.resume
  */
 class PsRemotePlayConfigActivity : AppCompatActivity() {
 
-    private lateinit var profileManager: ProfileManager
+    private lateinit var profileManager:   ProfileManager
+    private lateinit var credentialStore:  PsCredentialStore
 
     private lateinit var etHost:          EditText
     private lateinit var etAccountId:     EditText
@@ -91,9 +93,28 @@ class PsRemotePlayConfigActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        profileManager = ProfileManager(this)
+        profileManager  = ProfileManager(this)
+        credentialStore = PsCredentialStore(this)
+        showDisclosureIfNeeded()
         setContentView(buildUI())
         loadSavedSettings()
+    }
+
+    private fun showDisclosureIfNeeded() {
+        val prefs = getSharedPreferences("remote_play_disclosures", MODE_PRIVATE)
+        if (prefs.getBoolean("ps_disclosure_accepted", false)) return
+        AlertDialog.Builder(this)
+            .setTitle("Screen & Audio Capture Notice")
+            .setMessage(
+                "This output type streams your PlayStation console's screen content and audio " +
+                "to this device over your local network.\n\n" +
+                "The stream is processed on-device only and is not transmitted to any third party."
+            )
+            .setPositiveButton("I Understand") { _, _ ->
+                prefs.edit().putBoolean("ps_disclosure_accepted", true).apply()
+            }
+            .setCancelable(false)
+            .show()
     }
 
     // ── UI construction ───────────────────────────────────────────────────────
@@ -219,7 +240,7 @@ class PsRemotePlayConfigActivity : AppCompatActivity() {
     private fun loadSavedSettings() {
         lifecycleScope.launch {
             val profile  = profileManager.loadProfile()
-            val settings = profile.output?.settings ?: return@launch
+            val settings = profile.output?.settings ?: emptyMap<String, Any>()
 
             val savedHost = settings[SETTING_HOST] as? String ?: ""
             if (savedHost.isNotBlank()) etHost.setText(savedHost)
@@ -229,8 +250,22 @@ class PsRemotePlayConfigActivity : AppCompatActivity() {
 
             isPs5 = (settings[SETTING_IS_PS5] as? String) != "false"
 
-            val hasKeys = (settings[SETTING_REGIST_KEY] as? String)?.isNotBlank() == true
-            if (hasKeys) setPairingStatus(paired = true)
+            // Migrate legacy credentials from profile.json into the encrypted store.
+            val legacyRegist  = settings[SETTING_REGIST_KEY] as? String
+            val legacyMorning = settings[SETTING_MORNING]    as? String
+            if (!credentialStore.hasPairing() &&
+                !legacyRegist.isNullOrBlank() && !legacyMorning.isNullOrBlank()) {
+                credentialStore.save(legacyRegist, legacyMorning)
+                val cleaned = (settings.toMutableMap()).apply {
+                    remove(SETTING_REGIST_KEY)
+                    remove(SETTING_MORNING)
+                }
+                profile.output = profile.output?.copy(settings = cleaned)
+                profileManager.saveProfile(profile)
+                Log.i(TAG, "Migrated PS credentials from profile.json to EncryptedSharedPreferences")
+            }
+
+            if (credentialStore.hasPairing()) setPairingStatus(paired = true)
         }
     }
 
@@ -348,13 +383,15 @@ class PsRemotePlayConfigActivity : AppCompatActivity() {
             if (result != null &&
                 result.registKey.size == REGIST_KEY_BYTES &&
                 result.morning.size   == MORNING_BYTES) {
+                // Secrets go to the encrypted store; non-sensitive fields to profile.
+                credentialStore.save(result.registKey.toHexString(), result.morning.toHexString())
                 val profile  = profileManager.loadProfile()
                 val settings = (profile.output?.settings ?: mutableMapOf()).toMutableMap()
                 settings[SETTING_HOST]       = host
-                settings[SETTING_REGIST_KEY] = result.registKey.toHexString()
-                settings[SETTING_MORNING]    = result.morning.toHexString()
                 settings[SETTING_ACCOUNT_ID] = accountId.toString()
                 settings[SETTING_IS_PS5]     = isPs5Now.toString()
+                settings.remove(SETTING_REGIST_KEY)
+                settings.remove(SETTING_MORNING)
                 profile.output = profile.output?.copy(settings = settings)
                     ?: OutputConfig(type = OutputType.PS_REMOTE_PLAY, settings = settings)
                 profileManager.saveProfile(profile)
@@ -379,21 +416,18 @@ class PsRemotePlayConfigActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            val profile  = profileManager.loadProfile()
-            val settings = (profile.output?.settings ?: mutableMapOf()).toMutableMap()
-
-            val registKey = settings[SETTING_REGIST_KEY] as? String ?: ""
-            val morning   = settings[SETTING_MORNING]    as? String ?: ""
-
-            if (registKey.isBlank() || morning.isBlank()) {
+            val credentials = credentialStore.load()
+            if (credentials == null) {
                 Toast.makeText(this@PsRemotePlayConfigActivity,
                     getString(R.string.ps_remote_pair_first_toast), Toast.LENGTH_LONG).show()
                 return@launch
             }
+            val (registKey, morning) = credentials
 
+            val profile   = profileManager.loadProfile()
+            val settings  = profile.output?.settings ?: emptyMap<String, Any>()
             val accountId = settings[SETTING_ACCOUNT_ID] as? String ?: ""
             val isPs5Now  = (settings[SETTING_IS_PS5] as? String) != "false"
-            settings[SETTING_HOST] = host
 
             setResult(RESULT_OK, Intent().apply {
                 putExtra(RESULT_OUTPUT_TYPE, OutputType.PS_REMOTE_PLAY.name)
