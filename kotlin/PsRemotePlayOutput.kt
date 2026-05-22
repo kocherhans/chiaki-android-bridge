@@ -1,8 +1,3 @@
-@file:Suppress(
-    "GrazieStyle",
-    "SpellCheckingInspection"
-)
-
 package com.platform.intentcontroller.output
 
 import android.util.Log
